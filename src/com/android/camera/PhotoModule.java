@@ -237,28 +237,6 @@ public class PhotoModule
     }
 
     private OpenCameraThread mOpenCameraThread = null;
-    private boolean mEnableThreadedCameraStartup = true;
-
-    private void startOpenCameraThread() {
-        mOpenCameraThread = new OpenCameraThread();
-        if (mEnableThreadedCameraStartup) {
-             mOpenCameraThread.start();
-        } else {
-             mOpenCameraThread.run();
-        }
-    }
-
-    private void stopOpenCameraThread() {
-        if (mOpenCameraThread != null && mEnableThreadedCameraStartup) {
-            try {
-                mOpenCameraThread.join();
-            } catch (InterruptedException ex) {
-                // ignore
-            }
-        }
-        mOpenCameraThread = null;
-    }
-
     /**
      * An unpublished intent flag requesting to return as soon as capturing
      * is completed.
@@ -542,11 +520,9 @@ public class PhotoModule
         // Max brightness
         mActivity.initMaxBrightness(mPreferences);
 
-        mEnableThreadedCameraStartup = mActivity.getResources().getBoolean(
-                R.bool.enableThreadedCameraStartup);
-
         if (mOpenCameraThread == null && !mActivity.mIsModuleSwitchInProgress) {
-            startOpenCameraThread();
+            mOpenCameraThread = new OpenCameraThread();
+            mOpenCameraThread.start();
         }
         initializeControlByIntent();
         mQuickCapture = mActivity.getIntent().getBooleanExtra(EXTRA_QUICK_CAPTURE, false);
@@ -1910,7 +1886,8 @@ public class PhotoModule
         if (mOpenCameraFail || mCameraDisabled) return;
 
         if (mOpenCameraThread == null) {
-            startOpenCameraThread();
+            mOpenCameraThread = new OpenCameraThread();
+            mOpenCameraThread.start();
         }
 
         mJpegPictureCallbackTime = 0;
@@ -1973,8 +1950,14 @@ public class PhotoModule
         Log.v(TAG, "On pause.");
         mUI.showPreviewCover();
 
-        stopOpenCameraThread();
-
+        try {
+            if (mOpenCameraThread != null) {
+                mOpenCameraThread.join();
+            }
+        } catch (InterruptedException ex) {
+            // ignore
+        }
+        mOpenCameraThread = null;
         // Reset the focus first. Camera CTS does not guarantee that
         // cancelAutoFocus is allowed after preview stops.
         if (mCameraDevice != null && mCameraState != PREVIEW_STOPPED) {
